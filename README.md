@@ -23,4 +23,19 @@ React · Python/Flask · PostgreSQL · GitHub Actions (CI)
 
 ## Getting Started
 
-Setup instructions coming with the first codebase.
+You'll need Python 3.12+ and Docker (for Postgres). On Windows, activate the venv with `.venv\Scripts\activate` instead.
+
+```bash
+docker compose up -d
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+flask db upgrade
+flask run
+```
+
+The API runs at http://localhost:5000 — check http://localhost:5000/api/health to make sure it's up.
+
+Run the tests with `pytest` from the `backend` folder.
