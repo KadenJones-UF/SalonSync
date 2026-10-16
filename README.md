@@ -19,7 +19,7 @@ React · Python/Flask · PostgreSQL · GitHub Actions (CI)
 
 ## Project Status
 
-🚧 Iteration 1 — Planning & Design. See the (https://github.com/users/zbon0830/projects/1/views/2).
+🚧 Iteration 1 — Planning & Design. See the [Sprint Board](https://github.com/users/zbon0830/projects/1/views/2).
 
 ## Getting Started
 
