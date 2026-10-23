@@ -1,14 +1,35 @@
 import React, { useState, useEffect } from 'react';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('login'); // 'login' | 'signup'
+const DEFAULT_BRANDS = [
+  'Redken',
+  'Wella',
+  'Schwarzkopf',
+  "L'Oreal",
+  'Goldwell',
+  'Matrix',
+  'Pulp Riot',
+  'Joico',
+  'Kenra',
+  'Other'
+];
 
-  // Form fields
+const DEFAULT_DEVELOPERS = [
+  '5 vol',
+  '10 vol',
+  '20 vol',
+  '30 vol',
+  '40 vol'
+];
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('login');
+
+  // Auth fields
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Auth state
+  // Auth session
   const [token, setToken] = useState(() => localStorage.getItem('salonsync_token') || '');
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -17,19 +38,33 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Fetch current user if token exists on mount
+  // Notes state
+  const [notes, setNotes] = useState([]);
+  const [showNoteForm, setShowNoteForm] = useState(false);
+
+  // New Note Form fields
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteBrand, setNoteBrand] = useState('Redken');
+  const [noteShades, setNoteShades] = useState('');
+  const [noteDeveloper, setNoteDeveloper] = useState('20 vol');
+  const [noteProcessingTime, setNoteProcessingTime] = useState('35');
+  const [noteInstructions, setNoteInstructions] = useState('');
+  const [noteIsPublic, setNoteIsPublic] = useState(false);
+
+  // Field validation errors
+  const [fieldErrors, setFieldErrors] = useState({});
+
   useEffect(() => {
     if (token) {
       fetchUser(token);
+      fetchNotes(token);
     }
   }, [token]);
 
   const fetchUser = async (authToken) => {
     try {
       const res = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        },
+        headers: { 'Authorization': `Bearer ${authToken}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -39,6 +74,20 @@ export default function App() {
       }
     } catch (err) {
       handleLogout();
+    }
+  };
+
+  const fetchNotes = async (authToken) => {
+    try {
+      const res = await fetch('/api/notes', {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotes(data.notes || []);
+      }
+    } catch (err) {
+      // Ignore initial notes fetch failure
     }
   };
 
@@ -75,9 +124,7 @@ export default function App() {
     try {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: trimmedUsername,
           email: trimmedEmail,
@@ -88,13 +135,14 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        setErrorMessage(data.error || 'Registration failed. Please try again.');
+        setErrorMessage(data.error || 'Registration failed.');
       } else {
-        setSuccessMessage('Account created successfully! Logging you in...');
+        setSuccessMessage('Account created successfully!');
         if (data.token) {
           localStorage.setItem('salonsync_token', data.token);
           setToken(data.token);
           setCurrentUser(data.user);
+          fetchNotes(data.token);
         }
         setUsername('');
         setEmail('');
@@ -115,7 +163,7 @@ export default function App() {
     const identifier = (email || username).trim();
 
     if (!identifier || !password) {
-      setErrorMessage('Email/Username and password are required.');
+      setErrorMessage('Email or username and password are required.');
       return;
     }
 
@@ -124,9 +172,7 @@ export default function App() {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: identifier,
           password: password,
@@ -136,12 +182,13 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        setErrorMessage(data.error || 'Login failed. Please check your credentials.');
+        setErrorMessage(data.error || 'Login failed. Please check credentials.');
       } else {
         setSuccessMessage('Login successful!');
         localStorage.setItem('salonsync_token', data.token);
         setToken(data.token);
         setCurrentUser(data.user);
+        fetchNotes(data.token);
         setEmail('');
         setUsername('');
         setPassword('');
@@ -157,13 +204,85 @@ export default function App() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (err) {
-      // Ignore network errors on logout
+      // Ignore network errors
     } finally {
       localStorage.removeItem('salonsync_token');
       setToken('');
       setCurrentUser(null);
+      setNotes([]);
+      setShowNoteForm(false);
       setSuccessMessage('Logged out successfully.');
       setErrorMessage('');
+    }
+  };
+
+  const handleCreateNoteSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setFieldErrors({});
+
+    const errors = {};
+    const trimmedTitle = noteTitle.trim();
+    const trimmedBrand = noteBrand.trim();
+    const trimmedShades = noteShades.trim();
+    const trimmedDeveloper = noteDeveloper.trim();
+
+    if (!trimmedTitle) errors.title = 'Title is required.';
+    if (!trimmedBrand) errors.brand = 'Brand is required.';
+    if (!trimmedShades) errors.shades = 'Shades are required.';
+    if (!trimmedDeveloper) errors.developer = 'Developer is required.';
+
+    const procTimeNum = parseInt(noteProcessingTime, 10);
+    if (isNaN(procTimeNum) || procTimeNum < 1) {
+      errors.processing_time = 'Must be at least 1 minute.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setErrorMessage('Please fix the validation errors below.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: trimmedTitle,
+          brand: trimmedBrand,
+          shades: trimmedShades,
+          developer: trimmedDeveloper,
+          processing_time: procTimeNum,
+          notes: noteInstructions.trim(),
+          is_public: noteIsPublic,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(data.error || 'Failed to create note.');
+      } else {
+        setSuccessMessage('Formula note created successfully!');
+        setNotes([data.note, ...notes]);
+        setShowNoteForm(false);
+        // Reset form
+        setNoteTitle('');
+        setNoteShades('');
+        setNoteInstructions('');
+        setNoteProcessingTime('35');
+        setNoteIsPublic(false);
+      }
+    } catch (err) {
+      setErrorMessage('Network error: unable to save note.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -175,29 +294,202 @@ export default function App() {
       </div>
 
       {currentUser ? (
-        <div style={{ textAlign: 'center' }}>
-          <div className="banner banner-success">
-            <strong>Active Session</strong>
-            <div style={{ marginTop: '4px', fontSize: '13px' }}>
-              Logged in as <strong>{currentUser.username}</strong> ({currentUser.email})
+        <div>
+          {/* Stylist Session Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '700' }}>{currentUser.username}</div>
+              <div style={{ fontSize: '12px', color: '#718096' }}>{currentUser.email}</div>
             </div>
-            <div style={{ marginTop: '2px', fontSize: '12px', color: '#4a5568' }}>
-              Role: <span>{currentUser.role}</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => { setShowNoteForm(!showNoteForm); setErrorMessage(''); setSuccessMessage(''); setFieldErrors({}); }}
+              >
+                {showNoteForm ? 'Close Form' : 'New note'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleLogout}
+                style={{ color: '#c53030' }}
+              >
+                Log Out
+              </button>
             </div>
           </div>
 
-          <div style={{ padding: '20px 0', color: '#718096', fontSize: '14px' }}>
-            Ready to record and organize your client color formulas.
-          </div>
+          {errorMessage && (
+            <div className="banner banner-error" role="alert">
+              {errorMessage}
+            </div>
+          )}
 
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={handleLogout}
-            style={{ backgroundColor: '#e53e3e' }}
-          >
-            Log Out
-          </button>
+          {successMessage && (
+            <div className="banner banner-success" role="status">
+              {successMessage}
+            </div>
+          )}
+
+          {/* New Formula Note Form (US-4) */}
+          {showNoteForm && (
+            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e0', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '16px', marginBottom: '14px', color: '#2b6cb0' }}>Create Formula Note</h2>
+              <form onSubmit={handleCreateNoteSubmit} noValidate>
+                <div className="form-group">
+                  <label htmlFor="note-title">Client / Title *</label>
+                  <input
+                    id="note-title"
+                    type="text"
+                    value={noteTitle}
+                    onChange={(e) => setNoteTitle(e.target.value)}
+                    placeholder="e.g. Maria R. - root touch-up"
+                    disabled={loading}
+                  />
+                  {fieldErrors.title && <div className="field-error">{fieldErrors.title}</div>}
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="note-brand">Brand *</label>
+                    <select
+                      id="note-brand"
+                      value={noteBrand}
+                      onChange={(e) => setNoteBrand(e.target.value)}
+                      disabled={loading}
+                    >
+                      {DEFAULT_BRANDS.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                    {fieldErrors.brand && <div className="field-error">{fieldErrors.brand}</div>}
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="note-developer">Developer *</label>
+                    <select
+                      id="note-developer"
+                      value={noteDeveloper}
+                      onChange={(e) => setNoteDeveloper(e.target.value)}
+                      disabled={loading}
+                    >
+                      {DEFAULT_DEVELOPERS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    {fieldErrors.developer && <div className="field-error">{fieldErrors.developer}</div>}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="note-shades">Shades *</label>
+                    <input
+                      id="note-shades"
+                      type="text"
+                      value={noteShades}
+                      onChange={(e) => setNoteShades(e.target.value)}
+                      placeholder="e.g. 6NB + 7N"
+                      disabled={loading}
+                    />
+                    {fieldErrors.shades && <div className="field-error">{fieldErrors.shades}</div>}
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="note-processing-time">Processing time (min) *</label>
+                    <input
+                      id="note-processing-time"
+                      type="number"
+                      value={noteProcessingTime}
+                      onChange={(e) => setNoteProcessingTime(e.target.value)}
+                      placeholder="e.g. 35"
+                      min="1"
+                      disabled={loading}
+                    />
+                    {fieldErrors.processing_time && <div className="field-error">{fieldErrors.processing_time}</div>}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="note-instructions">Formula Notes and Instructions</label>
+                  <textarea
+                    id="note-instructions"
+                    rows="3"
+                    value={noteInstructions}
+                    onChange={(e) => setNoteInstructions(e.target.value)}
+                    placeholder="e.g. Apply roots first, pull through last 10 min"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    id="note-is-public"
+                    type="checkbox"
+                    checked={noteIsPublic}
+                    onChange={(e) => setNoteIsPublic(e.target.checked)}
+                    style={{ width: 'auto' }}
+                    disabled={loading}
+                  />
+                  <label htmlFor="note-is-public" style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
+                    Share publicly to salon community feed
+                  </label>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                  <button type="submit" className="btn-primary" disabled={loading}>
+                    {loading ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowNoteForm(false)}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Notes List View */}
+          <div style={{ marginTop: '16px' }}>
+            <h2 style={{ fontSize: '15px', color: '#2d3748', marginBottom: '8px' }}>
+              Formula Notes ({notes.length})
+            </h2>
+
+            {notes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#718096', fontSize: '13.5px', background: '#f8fafc', borderRadius: '6px', border: '1px dashed #cbd5e0' }}>
+                No notes yet. Click <strong>"New note"</strong> to create your first color formula.
+              </div>
+            ) : (
+              <div className="notes-list">
+                {notes.map((n) => (
+                  <div key={n.id} className="note-card">
+                    <div className="note-header">
+                      <span className="note-title">{n.title}</span>
+                      <span className={`badge ${n.is_public ? 'badge-public' : 'badge-private'}`}>
+                        {n.is_public ? 'Public' : 'Private'}
+                      </span>
+                    </div>
+                    <div className="note-formula">
+                      <strong>Brand:</strong> {n.brand} &nbsp;|&nbsp; <strong>Shades:</strong> {n.shades} &nbsp;|&nbsp; <strong>Developer:</strong> {n.developer} &nbsp;|&nbsp; <strong>Time:</strong> {n.processing_time} min
+                    </div>
+                    {n.notes && (
+                      <div style={{ fontSize: '12px', color: '#4a5568', marginTop: '4px' }}>
+                        {n.notes}
+                      </div>
+                    )}
+                    <div className="note-details" style={{ marginTop: '6px' }}>
+                      Created by {n.author_username}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <>
