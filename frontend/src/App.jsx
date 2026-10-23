@@ -294,6 +294,35 @@ export default function App() {
     }
   };
 
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Are you sure you want to delete this note? This cannot be undone.')) {
+      return;
+    }
+
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch(`/api/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(data.error || 'Failed to delete note.');
+      } else {
+        setSuccessMessage('Formula note deleted successfully!');
+        setNotes(notes.filter((n) => n.id !== noteId));
+      }
+    } catch (err) {
+      setErrorMessage('Network error: unable to delete note.');
+    }
+  };
+
   const handleEditClick = (note) => {
     setEditingNoteId(note.id);
     setNoteTitle(note.title);
@@ -532,6 +561,14 @@ export default function App() {
                       onClick={() => handleEditClick(n)}
                     >
                       Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ padding: '2px 8px', fontSize: '12px', color: '#c53030' }}
+                      onClick={() => handleDeleteNote(n.id)}
+                    >
+                      Delete
                     </button>
                   </div>
                   </div>

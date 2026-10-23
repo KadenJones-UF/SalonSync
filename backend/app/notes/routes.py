@@ -182,3 +182,20 @@ def update_note(current_user, note_id):
         "message": "Formula note updated successfully",
         "note": note.to_dict()
     }), 200
+
+@notes.delete("/<int:note_id>")
+@token_required
+def delete_note(current_user, note_id):
+    note = Note.query.get_or_404(note_id)
+
+    if note.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized to delete this note"}), 403
+
+    try:
+        db.session.delete(note)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An error occurred while deleting the formula note"}), 500
+
+    return jsonify({"message": "Formula note deleted successfully"}), 200
