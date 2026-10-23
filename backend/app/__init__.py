@@ -1,12 +1,14 @@
 from flask import Flask
+from flask_cors import CORS
 
 from .config import Config
 from .extensions import bcrypt, db, migrate
 
-
 def create_app(config=Config):
     app = Flask(__name__)
     app.config.from_object(config)
+
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     db.init_app(app)
     migrate.init_app(app, db)
