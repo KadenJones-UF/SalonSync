@@ -534,9 +534,6 @@ export default function App() {
                       Edit
                     </button>
                   </div>
-                    <div className="note-details" style={{ marginTop: '6px' }}>
-                      Created by {n.author_username}
-                    </div>
                   </div>
                 ))}
               </div>
