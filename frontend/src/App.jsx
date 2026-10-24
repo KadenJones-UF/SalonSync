@@ -394,6 +394,20 @@ export default function App() {
             </div>
           </div>
 
+          {/* Profile Header (US-3) */}
+          <div className="profile-header">
+            <div>
+              <div className="profile-name">{currentUser.username}</div>
+              <div className="profile-email">{currentUser.email}</div>
+            </div>
+            <div className="profile-meta">
+              <span className="badge badge-private">{currentUser.role}</span>
+              <span className="profile-count">
+                {notes.length} {notes.length === 1 ? 'formula' : 'formulas'}
+              </span>
+            </div>
+          </div>
+
           {errorMessage && (
             <div className="banner banner-error" role="alert">
               {errorMessage}
