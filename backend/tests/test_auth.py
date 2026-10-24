@@ -83,6 +83,21 @@ def test_protected_route_with_valid_token(client, registered_user):
     data = res.get_json()
     assert data["user"]["username"] == "stylist_jane"
 
+def test_me_returns_profile_fields(client, registered_user):
+    """TC-PROF-02: /api/auth/me returns username, email, and role for the profile header."""
+    login_res = client.post("/api/auth/login", json={
+        "email": "jane@example.com",
+        "password": "CorrectPassword123"
+    })
+    token = login_res.get_json()["token"]
+
+    res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 200
+    user = res.get_json()["user"]
+    assert user["username"] == "stylist_jane"
+    assert user["email"] == "jane@example.com"
+    assert user["role"] == "member"
+
 def test_protected_route_missing_or_invalid_token(client):
     """Block protected route when token is missing or corrupted."""
     # Missing token
