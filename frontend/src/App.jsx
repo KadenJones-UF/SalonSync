@@ -40,6 +40,7 @@ export default function App() {
 
   // Notes state
   const [notes, setNotes] = useState([]);
+  const [noteCount, setNoteCount] = useState(0);
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,6 +93,10 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setNotes(data.notes || []);
+        // Profile count tracks the unfiltered total only
+        if (!search && (!brand || brand === 'All')) {
+          setNoteCount((data.notes || []).length);
+        }
       }
     } catch (err) {
       // Ignore initial notes fetch failure
@@ -217,6 +222,7 @@ export default function App() {
       setToken('');
       setCurrentUser(null);
       setNotes([]);
+      setNoteCount(0);
       setShowNoteForm(false);
       setSuccessMessage('Logged out successfully.');
       setErrorMessage('');
@@ -284,6 +290,7 @@ export default function App() {
           setNotes(notes.map((n) => (n.id === editingNoteId ? data.note : n)));
         } else {
           setNotes([data.note, ...notes]);
+          setNoteCount((count) => count + 1);
         }
         setShowNoteForm(false);
         setEditingNoteId(null);
@@ -323,6 +330,7 @@ export default function App() {
       } else {
         setSuccessMessage('Formula note deleted successfully!');
         setNotes(notes.filter((n) => n.id !== noteId));
+        setNoteCount((count) => Math.max(count - 1, 0));
       }
     } catch (err) {
       setErrorMessage('Network error: unable to delete note.');
@@ -403,7 +411,7 @@ export default function App() {
             <div className="profile-meta">
               <span className="badge badge-private">{currentUser.role}</span>
               <span className="profile-count">
-                {notes.length} {notes.length === 1 ? 'formula' : 'formulas'}
+                {noteCount} {noteCount === 1 ? 'formula' : 'formulas'}
               </span>
             </div>
           </div>
