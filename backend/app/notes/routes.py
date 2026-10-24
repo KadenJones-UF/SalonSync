@@ -141,7 +141,7 @@ def update_note(current_user, note_id):
     shades = data.get("shades")
     developer = data.get("developer")
     processing_time = data.get("processing_time")
-    note_body = data.get("notes", "")
+    note_body = data.get("notes")
     is_public = data.get("is_public")
 
     # Required field validations
@@ -179,7 +179,8 @@ def update_note(current_user, note_id):
             return jsonify({"error": "Processing time must be at least 1 minute"}), 400
         note.processing_time = proc_time_int
 
-    if note_body is not None:
+    # Only touch notes when the client sent the field, so partial PATCHes keep existing notes
+    if "notes" in data:
         note.notes = str(note_body).strip() if note_body else ""
     
     if is_public is not None:

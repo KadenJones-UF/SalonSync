@@ -195,3 +195,105 @@ def test_update_note_success(client, auth_header):
     assert data["note"]["brand"] == "Wella"
     assert data["note"]["notes"] == "Adjusted after follow-up"
     assert data["note"]["is_public"] is True
+
+def make_auth_header(client, username):
+    client.post("/api/auth/signup", json={
+        "username": username,
+        "email": f"{username}@example.com",
+        "password": "Balayage2026"
+    })
+    login_res = client.post("/api/auth/login", json={
+        "email": f"{username}@example.com",
+        "password": "Balayage2026"
+    })
+    token = login_res.get_json()["token"]
+    return {"Authorization": f"Bearer {token}"}
+
+def create_note(client, headers, **overrides):
+    payload = {
+        "title": "Maria R. - root touch-up",
+        "brand": "Redken",
+        "shades": "6NB",
+        "developer": "20 vol",
+        "processing_time": 30,
+        "notes": "Apply roots first"
+    }
+    payload.update(overrides)
+    res = client.post("/api/notes", json=payload, headers=headers)
+    assert res.status_code == 201
+    return res.get_json()["note"]
+
+def test_partial_patch_preserves_notes(client, auth_header):
+    """TC-NOTE-03: PATCH without a notes field keeps the existing notes."""
+    note = create_note(client, auth_header)
+
+    res = client.patch(f"/api/notes/{note['id']}", json={"title": "Renamed"}, headers=auth_header)
+    assert res.status_code == 200
+    data = res.get_json()["note"]
+    assert data["title"] == "Renamed"
+    assert data["notes"] == "Apply roots first"
+
+def test_update_note_other_user_forbidden(client, auth_header):
+    """TC-NOTE-04: Another user cannot edit a note; the note is unchanged."""
+    note = create_note(client, auth_header)
+    other_header = make_auth_header(client, "other_stylist")
+
+    res_put = client.put(f"/api/notes/{note['id']}", json={"title": "Hijacked"}, headers=other_header)
+    assert res_put.status_code == 403
+
+    res_patch = client.patch(f"/api/notes/{note['id']}", json={"notes": "Hijacked"}, headers=other_header)
+    assert res_patch.status_code == 403
+
+    owner_notes = client.get("/api/notes", headers=auth_header).get_json()["notes"]
+    assert owner_notes[0]["title"] == "Maria R. - root touch-up"
+    assert owner_notes[0]["notes"] == "Apply roots first"
+
+def test_delete_note_success(client, auth_header):
+    """TC-NOTE-05: Owner can delete their note."""
+    note = create_note(client, auth_header)
+
+    res = client.delete(f"/api/notes/{note['id']}", headers=auth_header)
+    assert res.status_code == 200
+    assert res.get_json()["message"] == "Formula note deleted successfully"
+    assert client.get("/api/notes", headers=auth_header).get_json()["notes"] == []
+
+def test_delete_note_other_user_forbidden(client, auth_header):
+    """TC-NOTE-05: Another user cannot delete a note; the note survives."""
+    note = create_note(client, auth_header)
+    other_header = make_auth_header(client, "other_stylist")
+
+    res = client.delete(f"/api/notes/{note['id']}", headers=other_header)
+    assert res.status_code == 403
+
+    owner_notes = client.get("/api/notes", headers=auth_header).get_json()["notes"]
+    assert [n["id"] for n in owner_notes] == [note["id"]]
+
+def test_edit_or_delete_missing_note_returns_404(client, auth_header):
+    """Editing or deleting a note that does not exist returns 404."""
+    assert client.put("/api/notes/99999", json={"title": "x"}, headers=auth_header).status_code == 404
+    assert client.delete("/api/notes/99999", headers=auth_header).status_code == 404
+
+def test_search_excludes_other_users_notes(client, auth_header):
+    """TC-SRCH-01: Search only returns the authenticated user's notes."""
+    create_note(client, auth_header, title="Balayage - Maria")
+    other_header = make_auth_header(client, "other_stylist")
+    create_note(client, other_header, title="Balayage - Secret client")
+
+    for query in ["?q=Balayage", "?q=Secret", "?q=%25", "?brand=Redken"]:
+        notes = client.get(f"/api/notes{query}", headers=auth_header).get_json()["notes"]
+        for n in notes:
+            assert n["author_username"] == "jsmith_color"
+
+    notes = client.get("/api/notes?q=Balayage", headers=auth_header).get_json()["notes"]
+    assert [n["title"] for n in notes] == ["Balayage - Maria"]
+
+def test_search_brand_filter(client, auth_header):
+    """TC-SRCH-02: Brand filter returns only matching notes; 'All' returns everything."""
+    create_note(client, auth_header, title="Redken note", brand="Redken")
+    create_note(client, auth_header, title="Wella note", brand="Wella")
+
+    notes = client.get("/api/notes?brand=Wella", headers=auth_header).get_json()["notes"]
+    assert [n["title"] for n in notes] == ["Wella note"]
+
+    notes = client.get("/api/notes?brand=All", headers=auth_header).get_json()["notes"]
+    assert len(notes) == 2
