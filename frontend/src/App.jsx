@@ -42,6 +42,8 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [brandFilter, setBrandFilter] = useState('All');
 
   // New Note Form fields
   const [noteTitle, setNoteTitle] = useState('');
@@ -78,9 +80,13 @@ export default function App() {
     }
   };
 
-  const fetchNotes = async (authToken) => {
+  const fetchNotes = async (authToken, search = '', brand = '') => {
     try {
-      const res = await fetch('/api/notes', {
+      const params = new URLSearchParams();
+      if (search) params.append('q', search);
+      if (brand && brand !== 'All') params.append('brand', brand);
+
+      const res = await fetch(`/api/notes?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
       if (res.ok) {
@@ -527,6 +533,32 @@ export default function App() {
             <h2 style={{ fontSize: '15px', color: '#2d3748', marginBottom: '8px' }}>
               Formula Notes ({notes.length})
             </h2>
+
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <input
+                type="text"
+                placeholder="Search by client/title or shades..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  fetchNotes(token, e.target.value, brandFilter);
+                }}
+                style={{ flex: 1, padding: '8px', fontSize: '13px' }}
+              />
+              <select
+                value={brandFilter}
+                onChange={(e) => {
+                  setBrandFilter(e.target.value);
+                  fetchNotes(token, searchQuery, e.target.value);
+                }}
+                style={{ padding: '8px', fontSize: '13px' }}
+              >
+                <option value="All">All Brands</option>
+                {DEFAULT_BRANDS.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
 
             {notes.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px 10px', color: '#718096', fontSize: '13.5px', background: '#f8fafc', borderRadius: '6px', border: '1px dashed #cbd5e0' }}>

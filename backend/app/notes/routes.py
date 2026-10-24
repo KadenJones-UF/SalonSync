@@ -105,7 +105,20 @@ def create_note(current_user):
 @notes.get("/")
 @token_required
 def list_notes(current_user):
-    user_notes = Note.query.filter_by(user_id=current_user.id).order_by(Note.created_at.desc()).all()
+    query = Note.query.filter_by(user_id=current_user.id)
+    search_query = request.args.get("q", "").strip()
+    brand_filter = request.args.get("brand", "").strip()
+    if search_query:
+        query = query.filter(
+            db.or_(
+                Note.title.ilike(f"%{search_query}%"),
+                Note.brand.ilike(f"%{search_query}%"),
+                Note.shades.ilike(f"%{search_query}%")
+            )
+        )
+    if brand_filter and brand_filter != "All":
+        query = query.filter(Note.brand == brand_filter)
+    user_notes = query.order_by(Note.created_at.desc()).all()
     return jsonify({
         "notes": [n.to_dict() for n in user_notes]
     }), 200
