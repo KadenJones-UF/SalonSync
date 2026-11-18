@@ -408,3 +408,13 @@ def test_feed_filter_by_shade(client, auth_header):
 
     notes = client.get("/api/notes/feed?shade=8g").get_json()["notes"]
     assert [n["title"] for n in notes] == ["Gold Public"]
+
+
+def test_unshared_note_removed_from_feed(client, auth_header):
+    note = create_note(client, auth_header, title="Was Public", is_public=True)
+    assert "Was Public" in [n["title"] for n in client.get("/api/notes/feed").get_json()["notes"]]
+
+    res = client.patch(f"/api/notes/{note['id']}/share", json={"is_public": False}, headers=auth_header)
+    assert res.status_code == 200
+
+    assert "Was Public" not in [n["title"] for n in client.get("/api/notes/feed").get_json()["notes"]]

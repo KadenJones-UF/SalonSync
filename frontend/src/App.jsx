@@ -330,6 +330,33 @@ export default function App() {
     }
   };
 
+  const handleToggleShare = async (note) => {
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch(`/api/notes/${note.id}/share`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_public: !note.is_public }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(data.error || 'Failed to update share status.');
+      } else {
+        setNotes(notes.map((n) => (n.id === note.id ? data.note : n)));
+        setSuccessMessage(data.note.is_public ? 'Note is now public.' : 'Note is now private.');
+      }
+    } catch (err) {
+      setErrorMessage('Network error: unable to update share status.');
+    }
+  };
+
   const handleDeleteNote = async (noteId) => {
     if (!window.confirm('Are you sure you want to delete this note? This cannot be undone.')) {
       return;
@@ -702,6 +729,14 @@ export default function App() {
                       onClick={() => handleEditClick(n)}
                     >
                       Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ padding: '2px 8px', fontSize: '12px' }}
+                      onClick={() => handleToggleShare(n)}
+                    >
+                      {n.is_public ? 'Make Private' : 'Share'}
                     </button>
                     <button
                       type="button"
