@@ -285,3 +285,51 @@ body {
   background: #667eea;
   color: white;
 }
+
+/* Moderator Review Styles (US-13) */
+.badge-hidden {
+  background: #fed7d7;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+}
+
+.note-card-hidden {
+  border-left: 4px solid #e53e3e;
+}
+
+.moderator-view {
+  padding: 1rem 0;
+}
+
+.btn-tab {
+  padding: 8px 14px;
+  background-color: #edf2f7;
+  color: #4a5568;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-tab:hover {
+  background-color: #e2e8f0;
+}
+
+.btn-tab.active {
+  background-color: #2b6cb0;
+  color: white;
+  border-color: #2b6cb0;
+}
+
+.btn-tab-mod {
+  border-color: #805ad5;
+  color: #6b46c1;
+}
+
+.btn-tab-mod.active {
+  background-color: #805ad5;
+  color: white;
+  border-color: #805ad5;
+}

@@ -63,6 +63,78 @@ export default function App() {
   const [feedBrand, setFeedBrand] = useState('All');
   const [feedShade, setFeedShade] = useState('');
 
+  // Moderator Review State (US-13)
+  const [moderatorNotes, setModeratorNotes] = useState([]);
+  const [moderatorLoading, setModeratorLoading] = useState(false);
+  const [moderatorStatusFilter, setModeratorStatusFilter] = useState('all');
+  const [moderatorBrandFilter, setModeratorBrandFilter] = useState('All');
+  const [moderatorShadeFilter, setModeratorShadeFilter] = useState('');
+
+
+  const fetchModeratorFeed = async (status = moderatorStatusFilter, brand = moderatorBrandFilter, shade = moderatorShadeFilter) => {
+    if (!token) return;
+    setModeratorLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (status && status !== 'all') params.append('status', status);
+      if (brand && brand !== 'All') params.append('brand', brand);
+      if (shade) params.append('shade', shade);
+      const res = await fetch(`/api/notes/moderate?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setModeratorNotes(data.notes || []);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrorMessage(data.error || 'Failed to fetch notes for moderation review.');
+      }
+    } catch (err) {
+      console.error('Failed to fetch moderator review feed:', err);
+      setErrorMessage('Network error: unable to load moderation feed.');
+    } finally {
+      setModeratorLoading(false);
+    }
+  };
+
+  const handleToggleModerateHide = async (noteId, currentHidden) => {
+    if (!token) return;
+    const newHidden = !currentHidden;
+    const confirmMsg = newHidden
+      ? 'MODERATOR: Are you sure you want to hide this note from the community feed?'
+      : 'MODERATOR: Are you sure you want to restore this note to the community feed?';
+    if (!window.confirm(confirmMsg)) return;
+
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch(`/api/notes/${noteId}/moderate`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_hidden: newHidden }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setErrorMessage(data.error || 'Failed to update note moderation status.');
+      } else {
+        setSuccessMessage(newHidden ? 'MODERATOR: Note hidden from community feed.' : 'MODERATOR: Note restored to community feed.');
+        setModeratorNotes((prev) =>
+          prev.map((n) => (n.id === noteId ? { ...n, is_hidden: newHidden } : n))
+        );
+        if (newHidden) {
+          setFeedNotes((prev) => prev.filter((n) => n.id !== noteId));
+        } else {
+          fetchFeed();
+        }
+      }
+    } catch (err) {
+      setErrorMessage('Network error: unable to update moderation status.');
+    }
+  };
 
   const fetchFeed = async (brand = feedBrand, shade = feedShade) => {
     setFeedLoading(true);
@@ -601,8 +673,29 @@ export default function App() {
           )}
 
             <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button type="button" onClick={() => setCurrentView('my-notes')}>My Notes</button>
-              <button type="button" onClick={() => { setCurrentView('feed'); fetchFeed(); }}>Community Feed</button>
+              <button
+                type="button"
+                className={currentView === 'my-notes' ? 'btn-tab active' : 'btn-tab'}
+                onClick={() => setCurrentView('my-notes')}
+              >
+                My Notes
+              </button>
+              <button
+                type="button"
+                className={currentView === 'feed' ? 'btn-tab active' : 'btn-tab'}
+                onClick={() => { setCurrentView('feed'); fetchFeed(); }}
+              >
+                Community Feed
+              </button>
+              {currentUser?.role === 'moderator' && (
+                <button
+                  type="button"
+                  className={currentView === 'moderator-review' ? 'btn-tab btn-tab-mod active' : 'btn-tab btn-tab-mod'}
+                  onClick={() => { setCurrentView('moderator-review'); fetchModeratorFeed(); }}
+                >
+                  Moderator Review
+                </button>
+              )}
             </div>
 
             {currentView === 'feed' && (
@@ -664,7 +757,108 @@ export default function App() {
               </div>
             )}
 
+            {currentView === 'moderator-review' && currentUser?.role === 'moderator' && (
+              <div className="moderator-view">
+                <h2 style={{ fontSize: '18px', color: '#553c9a', marginTop: '12px' }}>Moderator Review View</h2>
+                <p className="feed-subtitle">Review all shared community formulas, including hidden and flagged posts.</p>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  <select
+                    value={moderatorStatusFilter}
+                    onChange={(e) => {
+                      setModeratorStatusFilter(e.target.value);
+                      fetchModeratorFeed(e.target.value, moderatorBrandFilter, moderatorShadeFilter);
+                    }}
+                    style={{ padding: '8px', fontSize: '13px' }}
+                  >
+                    <option value="all">All Moderation Statuses</option>
+                    <option value="active">Active (Visible in Feed)</option>
+                    <option value="hidden">Hidden from Feed</option>
+                  </select>
+                  <select
+                    value={moderatorBrandFilter}
+                    onChange={(e) => {
+                      setModeratorBrandFilter(e.target.value);
+                      fetchModeratorFeed(moderatorStatusFilter, e.target.value, moderatorShadeFilter);
+                    }}
+                    style={{ padding: '8px', fontSize: '13px' }}
+                  >
+                    <option value="All">All Brands</option>
+                    {DEFAULT_BRANDS.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Filter by shade..."
+                    value={moderatorShadeFilter}
+                    onChange={(e) => {
+                      setModeratorShadeFilter(e.target.value);
+                      fetchModeratorFeed(moderatorStatusFilter, moderatorBrandFilter, e.target.value);
+                    }}
+                    style={{ flex: 1, minWidth: '120px', padding: '8px', fontSize: '13px' }}
+                  />
+                </div>
+                {moderatorLoading ? (
+                  <div className="loading">Loading shared formulas for review...</div>
+                ) : moderatorNotes.length === 0 ? (
+                  <div className="empty-state">No shared formulas found matching the filters.</div>
+                ) : (
+                  <div className="notes-grid" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {moderatorNotes.map((n) => (
+                      <div
+                        key={n.id}
+                        className={`note-card ${n.is_hidden ? 'note-card-hidden' : 'note-card-public'}`}
+                        style={{ borderLeft: n.is_hidden ? '4px solid #e53e3e' : '4px solid #2ecc71' }}
+                      >
+                        <div className="note-header">
+                          <h3>{n.title}</h3>
+                          <span className={`badge ${n.is_hidden ? 'badge-hidden' : 'badge-public'}`}>
+                            {n.is_hidden ? 'Hidden from Feed' : 'Public & Visible'}
+                          </span>
+                        </div>
+                        <div className="note-meta" style={{ display: 'flex', justifyContent: 'space-between', color: '#718096', fontSize: '12px', marginBottom: '8px' }}>
+                          <span className="note-author">by <strong>{n.author_username}</strong></span>
+                          <span className="note-date">{new Date(n.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="note-details" style={{ fontSize: '12.5px', color: '#4a5568', lineHeight: '1.4' }}>
+                          <div><strong>Brand:</strong> {n.brand} &nbsp;|&nbsp; <strong>Shades:</strong> {n.shades}</div>
+                          <div><strong>Developer:</strong> {n.developer} &nbsp;|&nbsp; <strong>Processing:</strong> {n.processing_time} min</div>
+                        </div>
+                        {n.notes && (
+                          <div className="note-instructions" style={{ marginTop: '6px', fontSize: '12px', color: '#2d3748', background: '#edf2f7', padding: '6px 10px', borderRadius: '4px' }}>
+                            <strong>Notes:</strong> {n.notes}
+                          </div>
+                        )}
+                        <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                          {n.is_hidden ? (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              style={{ padding: '4px 10px', fontSize: '12px', color: '#276749', borderColor: '#9ae6b4', backgroundColor: '#f0fff4' }}
+                              onClick={() => handleToggleModerateHide(n.id, true)}
+                            >
+                              Restore to Feed
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              style={{ padding: '4px 10px', fontSize: '12px', color: '#c53030', borderColor: '#feb2b2', backgroundColor: '#fff5f5' }}
+                              onClick={() => handleToggleModerateHide(n.id, false)}
+                            >
+                              Hide from Feed
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Notes List View */}
+          {currentView === 'my-notes' && (
           <div style={{ marginTop: '16px' }}>
             <h2 style={{ fontSize: '15px', color: '#2d3748', marginBottom: '8px' }}>
               Formula Notes ({notes.length})
@@ -752,6 +946,7 @@ export default function App() {
               </div>
             )}
           </div>
+          )}
         </div>
       ) : (
         <>
