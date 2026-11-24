@@ -11,7 +11,7 @@ from ..models.user import User
 
 auth = Blueprint("auth", __name__)
 
-EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_REGEX = re.compile(r"^[^\s@]+@(?:[^\s@\.]+\.)+[^\s@\.]{2,}$")
 USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9_]{3,50}$")
 
 def generate_token(user):
