@@ -128,7 +128,7 @@ export default function App() {
         if (newHidden) {
           setFeedNotes((prev) => prev.filter((n) => n.id !== noteId));
         } else {
-          fetchFeed();
+          await fetchFeed();
         }
       }
     } catch (err) {
@@ -683,7 +683,7 @@ export default function App() {
               <button
                 type="button"
                 className={currentView === 'feed' ? 'btn-tab active' : 'btn-tab'}
-                onClick={() => { setCurrentView('feed'); fetchFeed(); }}
+                onClick={() => { setCurrentView('feed'); void fetchFeed(); }}
               >
                 Community Feed
               </button>
@@ -691,7 +691,7 @@ export default function App() {
                 <button
                   type="button"
                   className={currentView === 'moderator-review' ? 'btn-tab btn-tab-mod active' : 'btn-tab btn-tab-mod'}
-                  onClick={() => { setCurrentView('moderator-review'); fetchModeratorFeed(); }}
+                  onClick={() => { setCurrentView('moderator-review'); void fetchModeratorFeed(); }}
                 >
                   Moderator Review
                 </button>
@@ -766,7 +766,7 @@ export default function App() {
                     value={moderatorStatusFilter}
                     onChange={(e) => {
                       setModeratorStatusFilter(e.target.value);
-                      fetchModeratorFeed(e.target.value, moderatorBrandFilter, moderatorShadeFilter);
+                      void fetchModeratorFeed(e.target.value, moderatorBrandFilter, moderatorShadeFilter);
                     }}
                     style={{ padding: '8px', fontSize: '13px' }}
                   >
@@ -778,7 +778,7 @@ export default function App() {
                     value={moderatorBrandFilter}
                     onChange={(e) => {
                       setModeratorBrandFilter(e.target.value);
-                      fetchModeratorFeed(moderatorStatusFilter, e.target.value, moderatorShadeFilter);
+                      void fetchModeratorFeed(moderatorStatusFilter, e.target.value, moderatorShadeFilter);
                     }}
                     style={{ padding: '8px', fontSize: '13px' }}
                   >
@@ -793,7 +793,7 @@ export default function App() {
                     value={moderatorShadeFilter}
                     onChange={(e) => {
                       setModeratorShadeFilter(e.target.value);
-                      fetchModeratorFeed(moderatorStatusFilter, moderatorBrandFilter, e.target.value);
+                      void fetchModeratorFeed(moderatorStatusFilter, moderatorBrandFilter, e.target.value);
                     }}
                     style={{ flex: 1, minWidth: '120px', padding: '8px', fontSize: '13px' }}
                   />
@@ -835,7 +835,7 @@ export default function App() {
                               type="button"
                               className="btn-secondary"
                               style={{ padding: '4px 10px', fontSize: '12px', color: '#276749', borderColor: '#9ae6b4', backgroundColor: '#f0fff4' }}
-                              onClick={() => handleToggleModerateHide(n.id, true)}
+                              onClick={() => { void handleToggleModerateHide(n.id, true); }}
                             >
                               Restore to Feed
                             </button>
@@ -844,7 +844,7 @@ export default function App() {
                               type="button"
                               className="btn-secondary"
                               style={{ padding: '4px 10px', fontSize: '12px', color: '#c53030', borderColor: '#feb2b2', backgroundColor: '#fff5f5' }}
-                              onClick={() => handleToggleModerateHide(n.id, false)}
+                              onClick={() => { void handleToggleModerateHide(n.id, false); }}
                             >
                               Hide from Feed
                             </button>
