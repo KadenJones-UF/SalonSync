@@ -1,6 +1,7 @@
 import pytest
 from app.models.note import Note
 from app.models.user import User
+from app.extensions import db
 
 @pytest.fixture
 def auth_header(client):
@@ -418,3 +419,167 @@ def test_unshared_note_removed_from_feed(client, auth_header):
     assert res.status_code == 200
 
     assert "Was Public" not in [n["title"] for n in client.get("/api/notes/feed").get_json()["notes"]]
+
+
+@pytest.fixture
+def moderator_auth_header(client, app):
+    signup_payload = {
+        "username": "mod_sarah",
+        "email": "mod_sarah@example.com",
+        "password": "ModPassword2026"
+    }
+    client.post("/api/auth/signup", json=signup_payload)
+    with app.app_context():
+        user = User.query.filter_by(username="mod_sarah").first()
+        user.role = "moderator"
+        db.session.commit()
+    login_res = client.post("/api/auth/login", json={
+        "email": "mod_sarah@example.com",
+        "password": "ModPassword2026"
+    })
+    token = login_res.get_json()["token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+# ==============================================================================
+# US-13: Moderator Review View & Moderation Controls
+# ==============================================================================
+
+def test_moderator_feed_returns_all_shared_notes_including_hidden(client, auth_header, moderator_auth_header):
+    """US-13: Moderator review feed returns all shared notes, including hidden ones."""
+    # Create private note (should NOT appear)
+    create_note(client, auth_header, title="Private Secret Formula", is_public=False)
+
+    # Create active public note
+    n_active = create_note(client, auth_header, title="Active Public Formula", is_public=True)
+
+    # Create hidden public note
+    n_hidden = create_note(client, auth_header, title="Hidden Public Formula", is_public=True)
+    res_hide = client.patch(f"/api/notes/{n_hidden['id']}/moderate", json={"is_hidden": True}, headers=moderator_auth_header)
+    assert res_hide.status_code == 200
+
+    # Fetch moderator review feed
+    res = client.get("/api/notes/moderate", headers=moderator_auth_header)
+    assert res.status_code == 200
+    data = res.get_json()
+    titles = [n["title"] for n in data["notes"]]
+
+    assert "Active Public Formula" in titles
+    assert "Hidden Public Formula" in titles
+    assert "Private Secret Formula" not in titles
+
+    # Check is_hidden flag values
+    note_dict = {n["title"]: n for n in data["notes"]}
+    assert note_dict["Active Public Formula"]["is_hidden"] is False
+    assert note_dict["Hidden Public Formula"]["is_hidden"] is True
+
+
+def test_moderator_feed_unauthenticated(client):
+    """US-13: Block unauthenticated requests to moderator review feed with 401."""
+    res = client.get("/api/notes/moderate")
+    assert res.status_code == 401
+
+
+def test_moderator_feed_forbidden_for_regular_member(client, auth_header):
+    """US-13: Block regular member from moderator review feed with 403."""
+    res = client.get("/api/notes/moderate", headers=auth_header)
+    assert res.status_code == 403
+    assert "unauthorized access" in res.get_json()["error"].lower()
+
+
+def test_public_feed_excludes_hidden_notes(client, auth_header, moderator_auth_header):
+    """US-13 / US-9: Ensure public feed hides moderated notes while visible in review feed."""
+    n1 = create_note(client, auth_header, title="Clean Formula", is_public=True)
+    n2 = create_note(client, auth_header, title="Inappropriate Formula", is_public=True)
+
+    # Before hide: both in public feed
+    feed_before = [n["title"] for n in client.get("/api/notes/feed").get_json()["notes"]]
+    assert "Clean Formula" in feed_before
+    assert "Inappropriate Formula" in feed_before
+
+    # Moderate / hide n2
+    client.patch(f"/api/notes/{n2['id']}/moderate", json={"is_hidden": True}, headers=moderator_auth_header)
+
+    # After hide: only Clean Formula in public feed
+    feed_after = [n["title"] for n in client.get("/api/notes/feed").get_json()["notes"]]
+    assert "Clean Formula" in feed_after
+    assert "Inappropriate Formula" not in feed_after
+
+
+def test_moderator_feed_filter_by_status(client, auth_header, moderator_auth_header):
+    """US-13: Moderator can filter review feed by status (all, hidden, active)."""
+    n1 = create_note(client, auth_header, title="Active Filter Test", is_public=True)
+    n2 = create_note(client, auth_header, title="Hidden Filter Test", is_public=True)
+    client.patch(f"/api/notes/{n2['id']}/moderate", json={"is_hidden": True}, headers=moderator_auth_header)
+
+    # Filter status=hidden
+    res_hidden = client.get("/api/notes/moderate?status=hidden", headers=moderator_auth_header)
+    assert res_hidden.status_code == 200
+    titles_hidden = [n["title"] for n in res_hidden.get_json()["notes"]]
+    assert "Hidden Filter Test" in titles_hidden
+    assert "Active Filter Test" not in titles_hidden
+
+    # Filter status=active
+    res_active = client.get("/api/notes/moderate?status=active", headers=moderator_auth_header)
+    assert res_active.status_code == 200
+    titles_active = [n["title"] for n in res_active.get_json()["notes"]]
+    assert "Active Filter Test" in titles_active
+    assert "Hidden Filter Test" not in titles_active
+
+
+def test_moderator_feed_filter_by_brand_and_shade(client, auth_header, moderator_auth_header):
+    """US-13: Moderator can filter review feed by brand and shade."""
+    create_note(client, auth_header, title="Mod Redken 7N", brand="Redken", shades="7N", is_public=True)
+    create_note(client, auth_header, title="Mod Wella 8G", brand="Wella", shades="8G", is_public=True)
+
+    # Filter brand
+    res_brand = client.get("/api/notes/moderate?brand=Redken", headers=moderator_auth_header)
+    assert res_brand.status_code == 200
+    titles_brand = [n["title"] for n in res_brand.get_json()["notes"]]
+    assert "Mod Redken 7N" in titles_brand
+    assert "Mod Wella 8G" not in titles_brand
+
+    # Filter shade
+    res_shade = client.get("/api/notes/moderate?shade=8g", headers=moderator_auth_header)
+    assert res_shade.status_code == 200
+    titles_shade = [n["title"] for n in res_shade.get_json()["notes"]]
+    assert "Mod Wella 8G" in titles_shade
+    assert "Mod Redken 7N" not in titles_shade
+
+
+def test_moderator_toggle_hide_and_restore(client, auth_header, moderator_auth_header):
+    """US-13 / US-12: Moderator can hide and subsequently restore a shared note."""
+    note = create_note(client, auth_header, title="Toggle Restorable Note", is_public=True)
+
+    # Hide note
+    res_hide = client.patch(f"/api/notes/{note['id']}/moderate", json={"is_hidden": True}, headers=moderator_auth_header)
+    assert res_hide.status_code == 200
+    assert res_hide.get_json()["note"]["is_hidden"] is True
+    assert "Toggle Restorable Note" not in [n["title"] for n in client.get("/api/notes/feed").get_json()["notes"]]
+
+    # Restore note
+    res_restore = client.patch(f"/api/notes/{note['id']}/moderate", json={"is_hidden": False}, headers=moderator_auth_header)
+    assert res_restore.status_code == 200
+    assert res_restore.get_json()["note"]["is_hidden"] is False
+    assert "Toggle Restorable Note" in [n["title"] for n in client.get("/api/notes/feed").get_json()["notes"]]
+
+
+def test_moderator_toggle_hide_forbidden_for_regular_member(client, auth_header):
+    """US-13: Block regular member from moderating a note with 403."""
+    note = create_note(client, auth_header, title="Member Note", is_public=True)
+    res = client.patch(f"/api/notes/{note['id']}/moderate", json={"is_hidden": True}, headers=auth_header)
+    assert res.status_code == 403
+    assert "unauthorized access" in res.get_json()["error"].lower()
+
+
+def test_moderator_toggle_hide_validation(client, auth_header, moderator_auth_header):
+    """US-13: Validation on moderate endpoint (missing field, 404)."""
+    note = create_note(client, auth_header, title="Valid Note", is_public=True)
+
+    # Missing is_hidden field
+    res_bad = client.patch(f"/api/notes/{note['id']}/moderate", json={}, headers=moderator_auth_header)
+    assert res_bad.status_code == 400
+
+    # Nonexistent note
+    res_404 = client.patch("/api/notes/999999/moderate", json={"is_hidden": True}, headers=moderator_auth_header)
+    assert res_404.status_code == 404
