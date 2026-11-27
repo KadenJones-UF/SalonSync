@@ -459,8 +459,8 @@ export default function App() {
     }
   };
 
-const handleModeratorDelete = async (noteId) => {
-    if (!window.confirm('MODERATOR: Are you sure you want to remove this note?')) {
+  const handleModeratorRemove = async (noteId) => {
+    if (!window.confirm('MODERATOR: Are you sure you want to remove this note from the feed?')) {
       return;
     }
 
@@ -469,10 +469,12 @@ const handleModeratorDelete = async (noteId) => {
 
     try {
       const response = await fetch(`/api/notes/${noteId}/moderate`, {
-        method: 'DELETE',
+        method: 'PATCH',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
+        body: JSON.stringify({ is_hidden: true }),
       });
 
       const data = await response.json();
@@ -785,7 +787,7 @@ const handleModeratorDelete = async (noteId) => {
                               type="button"
                               className="btn-secondary"
                               style={{ padding: '2px 8px', fontSize: '12px', color: '#c53030' }}
-                              onClick={() => handleModeratorDelete(n.id)}
+                              onClick={() => { void handleModeratorRemove(n.id); }}
                             >
                               Remove Note
                             </button>
