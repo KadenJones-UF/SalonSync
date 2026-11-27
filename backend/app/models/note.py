@@ -14,6 +14,7 @@ class Note(db.Model):
     processing_time = db.Column(db.Integer, nullable=False)
     notes = db.Column(db.Text, nullable=True)
     is_public = db.Column(db.Boolean, default=False, nullable=False)
+    is_hidden = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
@@ -31,6 +32,7 @@ class Note(db.Model):
             "processing_time": self.processing_time,
             "notes": self.notes or "",
             "is_public": self.is_public,
+            "is_hidden": self.is_hidden,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

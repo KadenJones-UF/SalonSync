@@ -286,6 +286,21 @@ body {
   color: white;
 }
 
+/* Moderator Review Styles (US-13) */
+.badge-hidden {
+  background: #fed7d7;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+}
+
+.note-card-hidden {
+  border-left: 4px solid #e53e3e;
+}
+
+.moderator-view {
+  padding: 1rem 0;
+}
+
 .btn-tab {
   padding: 8px 14px;
   background-color: #edf2f7;
@@ -306,4 +321,15 @@ body {
   background-color: #2b6cb0;
   color: white;
   border-color: #2b6cb0;
+}
+
+.btn-tab-mod {
+  border-color: #805ad5;
+  color: #6b46c1;
+}
+
+.btn-tab-mod.active {
+  background-color: #805ad5;
+  color: white;
+  border-color: #805ad5;
 }
