@@ -17,9 +17,11 @@ def create_app(config=Config):
     from . import models
     from .auth.routes import auth
     from .notes.routes import notes
+    from .seed import seed_command
 
     app.register_blueprint(auth, url_prefix="/api/auth")
     app.register_blueprint(notes, url_prefix="/api/notes")
+    app.cli.add_command(seed_command)
 
     @app.get("/api/health")
     def health():

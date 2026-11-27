@@ -250,7 +250,7 @@ def toggle_share(current_user, note_id):
 @notes.get("/feed")
 def get_public_feed():
     """US-9: Return all publicly shared notes, newest first."""
-    query = Note.query.filter_by(is_public=True)
+    query = Note.query.filter_by(is_public=True, is_hidden=False)
     brand = request.args.get("brand", "").strip()
     shade = request.args.get("shade", "").strip()
     if brand and brand != "All":
@@ -261,6 +261,68 @@ def get_public_feed():
     return jsonify({
         "notes": [n.to_dict() for n in public_notes]
     }), 200
+
+
+@notes.get("/moderate")
+@notes.get("/review")
+@token_required
+def get_moderator_feed(current_user):
+    """US-13: Return all shared notes for moderator review, including hidden notes."""
+    if current_user.role != "moderator":
+        return jsonify({"error": "Unauthorized access"}), 403
+
+    query = Note.query.filter_by(is_public=True)
+
+    status = request.args.get("status", "all").strip().lower()
+    if status == "hidden":
+        query = query.filter(Note.is_hidden == True)
+    elif status in ("active", "visible"):
+        query = query.filter(Note.is_hidden == False)
+
+    brand = request.args.get("brand", "").strip()
+    shade = request.args.get("shade", "").strip()
+    if brand and brand != "All":
+        query = query.filter(Note.brand == brand)
+    if shade:
+        query = query.filter(Note.shades.ilike(f"%{shade}%"))
+
+    notes_list = query.order_by(Note.created_at.desc()).all()
+    return jsonify({
+        "notes": [n.to_dict() for n in notes_list]
+    }), 200
+
+
+@notes.patch("/<int:note_id>/moderate")
+@token_required
+def moderate_note(current_user, note_id):
+    """Moderate a note's visibility (hide/restore). Accepts {is_hidden: bool}."""
+    if current_user.role != "moderator":
+        return jsonify({"error": "Unauthorized access"}), 403
+
+    note = Note.query.get_or_404(note_id)
+
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data, dict) or "is_hidden" not in data:
+        return jsonify({"error": "Request body must include is_hidden boolean"}), 400
+
+    try:
+        new_hidden = bool(data["is_hidden"])
+    except (TypeError, ValueError):
+        return jsonify({"error": "is_hidden must be a boolean"}), 400
+
+    note.is_hidden = new_hidden
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An error occurred while moderating the note"}), 500
+
+    return jsonify({
+        "message": "Note moderation status updated",
+        "note": note.to_dict()
+    }), 200
+
 
 @notes.delete("/<int:note_id>/moderate")
 @token_required
