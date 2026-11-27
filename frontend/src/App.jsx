@@ -155,8 +155,8 @@ export default function App() {
   };
   useEffect(() => {
     if (token) {
-      fetchUser(token);
-      fetchNotes(token);
+      void fetchUser(token);
+      void fetchNotes(token);
     }
   }, [token]);
 
@@ -169,10 +169,10 @@ export default function App() {
         const data = await res.json();
         setCurrentUser(data.user);
       } else {
-        handleLogout();
+        void handleLogout();
       }
     } catch (err) {
-      handleLogout();
+      void handleLogout();
     }
   };
 
@@ -216,7 +216,7 @@ export default function App() {
       return;
     }
 
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedEmail)) {
+    if (!/^[^\s@]+@(?:[^\s@\.]+\.)+[^\s@\.]{2,}$/.test(trimmedEmail)) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
@@ -249,7 +249,7 @@ export default function App() {
           localStorage.setItem('salonsync_token', data.token);
           setToken(data.token);
           setCurrentUser(data.user);
-          fetchNotes(data.token);
+          void fetchNotes(data.token);
         }
         setUsername('');
         setEmail('');
@@ -295,7 +295,7 @@ export default function App() {
         localStorage.setItem('salonsync_token', data.token);
         setToken(data.token);
         setCurrentUser(data.user);
-        fetchNotes(data.token);
+        void fetchNotes(data.token);
         setEmail('');
         setUsername('');
         setPassword('');
@@ -341,8 +341,8 @@ export default function App() {
     if (!trimmedShades) errors.shades = 'Shades are required.';
     if (!trimmedDeveloper) errors.developer = 'Developer is required.';
 
-    const procTimeNum = parseInt(noteProcessingTime, 10);
-    if (isNaN(procTimeNum) || procTimeNum < 1) {
+    const procTimeNum = Number.parseInt(noteProcessingTime, 10);
+    if (Number.isNaN(procTimeNum) || procTimeNum < 1) {
       errors.processing_time = 'Must be at least 1 minute.';
     }
 
@@ -407,7 +407,7 @@ export default function App() {
     setSuccessMessage('');
 
     try {
-      const response = await fetch(`/api/notes/${note.id}/share`, {
+      const response = await fetch(`/api/notes/${encodeURIComponent(note.id)}/share`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -438,7 +438,7 @@ export default function App() {
     setSuccessMessage('');
 
     try {
-      const response = await fetch(`/api/notes/${noteId}`, {
+      const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -707,7 +707,7 @@ export default function App() {
                     value={feedBrand}
                     onChange={(e) => {
                       setFeedBrand(e.target.value);
-                      fetchFeed(e.target.value, feedShade);
+                      void fetchFeed(e.target.value, feedShade);
                     }}
                     style={{ padding: '8px', fontSize: '13px' }}
                   >
@@ -722,7 +722,7 @@ export default function App() {
                     value={feedShade}
                     onChange={(e) => {
                       setFeedShade(e.target.value);
-                      fetchFeed(feedBrand, e.target.value);
+                      void fetchFeed(feedBrand, e.target.value);
                     }}
                     style={{ flex: 1, padding: '8px', fontSize: '13px' }}
                   />
@@ -871,7 +871,7 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  fetchNotes(token, e.target.value, brandFilter);
+                  void fetchNotes(token, e.target.value, brandFilter);
                 }}
                 style={{ flex: 1, padding: '8px', fontSize: '13px' }}
               />
@@ -879,7 +879,7 @@ export default function App() {
                 value={brandFilter}
                 onChange={(e) => {
                   setBrandFilter(e.target.value);
-                  fetchNotes(token, searchQuery, e.target.value);
+                  void fetchNotes(token, searchQuery, e.target.value);
                 }}
                 style={{ padding: '8px', fontSize: '13px' }}
               >
